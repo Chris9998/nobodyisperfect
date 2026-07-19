@@ -162,6 +162,7 @@ const myId = 'p_' + Math.random().toString(36).slice(2, 10);
 let state = null;
 let joined = false;
 let myName = '';
+let lastStateStr = null;
 
 const CATEGORIES = [
   { key:'science', label:'Natur & Wissenschaft' },
@@ -220,12 +221,35 @@ function shuffle(arr){
 async function loadState(){
   try{
     const res = await window.storage.get(KEY, true);
+    lastStateStr = res.value;
     state = JSON.parse(res.value);
   }catch(e){
     state = defaultState();
-    try{ await window.storage.set(KEY, JSON.stringify(state), true); }catch(e2){}
+    lastStateStr = JSON.stringify(state);
+    try{ await window.storage.set(KEY, lastStateStr, true); }catch(e2){}
   }
   render();
+}
+
+// Used by the polling interval: only touches the DOM when the stored
+// state actually changed, so a focused input (e.g. while typing a name
+// or an answer) doesn't get reset every 1.5s.
+async function pollState(){
+  try{
+    const res = await window.storage.get(KEY, true);
+    if(res.value !== lastStateStr){
+      lastStateStr = res.value;
+      state = JSON.parse(res.value);
+      render();
+    }
+  }catch(e){
+    if(!state){
+      state = defaultState();
+      lastStateStr = JSON.stringify(state);
+      try{ await window.storage.set(KEY, lastStateStr, true); }catch(e2){}
+      render();
+    }
+  }
 }
 
 async function saveState(newState){
@@ -233,7 +257,7 @@ async function saveState(newState){
   render();
   try{
     const res = await window.storage.set(KEY, JSON.stringify(state), true);
-    if(res){ state = JSON.parse(res.value); render(); }
+    if(res){ state = JSON.parse(res.value); lastStateStr = res.value; render(); }
   }catch(e){ console.error('Speichern fehlgeschlagen', e); }
 }
 
@@ -559,5 +583,5 @@ function render(){
 }
 
 loadState();
-setInterval(loadState, 1500);
+setInterval(pollState, 1500);
 </script>
